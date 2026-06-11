@@ -1,0 +1,36 @@
+cooldown: 3.0       # Seconds to wait after triggering an action
+hold_duration: 0.8  # Seconds to hold a gesture before it triggers
+debug: true         # Show window with landmarks and detected gesture
+
+camera:
+  index: 0
+  width: 640
+  height: 480
+
+presence:
+  away_timeout: 10
+  away_command: "notify-send 'Camera' 'You left — see you later.'"
+  present_command: "notify-send 'Camera' 'Welcome back!'"
+
+# Map gesture -> shell command
+# Available gestures: fist, open_hand, thumb_up, pointing, peace, ok
+gestures:
+  thumb_up:
+    command: "notify-send 'Camera' 'Thumbs up!'"
+    description: Thumb up
+
+  fist:
+    command: "notify-send 'Camera' 'Fist detected'"
+    description: Closed fist
+
+  open_hand:
+    command: "notify-send 'Camera' 'Open hand'"
+    description: All fingers open
+
+  peace:
+    command: "notify-send 'Camera' 'Peace sign'"
+    description: Index and middle finger extended
+
+  pointing:
+    command: "notify-send 'Camera' 'Pointing'"
+    description: Index finger only
