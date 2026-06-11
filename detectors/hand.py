@@ -70,10 +70,8 @@ class HandDetector:
     def _fingers_up(self, landmarks) -> list[bool]:
         wrist = landmarks[0]
 
-        # Thumb: compare tip vs IP joint distance to wrist — orientation-independent
-        thumb_tip_d = self._dist(landmarks[TIP[0]], wrist)
-        thumb_ip_d = self._dist(landmarks[PIP[0]], wrist)
-        thumb = thumb_tip_d > thumb_ip_d * 1.3
+        # Thumb: tip above the index knuckle — simple and works across orientations
+        thumb = landmarks[TIP[0]].y < landmarks[5].y
 
         # Fingers 1-4: tip must be ≥1.5x further from wrist than the base knuckle
         others = []
