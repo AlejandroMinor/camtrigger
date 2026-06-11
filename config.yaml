@@ -1,5 +1,5 @@
 cooldown: 3.0       # Seconds to wait after triggering an action
-hold_duration: 0.8  # Seconds to hold a gesture before it triggers
+hold_duration: 1.5  # Seconds to hold a gesture before it triggers
 debug: true         # Show window with landmarks and detected gesture
 
 camera:

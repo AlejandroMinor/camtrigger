@@ -21,6 +21,8 @@ python3 main.py
 
 A window opens with the camera feed. The detected gesture appears top-left, presence status top-right. A progress bar fills as you hold a gesture — the command fires when it completes. Press **Q** to quit.
 
+**Presence detection** runs continuously via pose landmarks. Gestures are only processed when a person is detected. If no one is detected for `away_timeout` seconds, the `away_command` fires and gesture detection pauses. When you return, `present_command` fires and gestures resume. A countdown is shown on screen before the away action triggers.
+
 ## Available gestures
 
 | Gesture     | Description                      |
