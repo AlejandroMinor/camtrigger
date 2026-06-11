@@ -7,6 +7,11 @@ camera:
   width: 640
   height: 480
 
+hand:
+  # Ignore gestures detected in the top portion of the frame (where the face is).
+  # 0.4 means the top 40% is a dead zone. Increase if still triggering near face.
+  gesture_zone_top: 0.4
+
 presence:
   away_timeout: 10
   away_command: "notify-send 'Camera' 'You left — see you later.'"

@@ -1,5 +1,6 @@
 import math
 import urllib.request
+from collections import deque
 import cv2
 import mediapipe as mp
 from mediapipe.tasks import python as mp_python
@@ -12,12 +13,10 @@ MODEL_URL = (
     "hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
 )
 
-# Landmarks (MediaPipe Hands)
-TIP = [4, 8, 12, 16, 20]   # tips
-PIP = [3, 6, 10, 14, 18]   # first joint (for detecting extended finger)
-MCP = [2, 5, 9, 13, 17]    # base knuckles (for detecting clenched fist)
+TIP = [4, 8, 12, 16, 20]
+PIP = [3, 6, 10, 14, 18]
+MCP = [2, 5, 9, 13, 17]
 
-# Connections between landmarks to draw the hand skeleton
 CONNECTIONS = [
     (0,1),(1,2),(2,3),(3,4),
     (0,5),(5,6),(6,7),(7,8),
@@ -26,6 +25,9 @@ CONNECTIONS = [
     (0,17),(17,18),(18,19),(19,20),
     (5,9),(9,13),(13,17),
 ]
+
+HISTORY_SIZE = 6
+STABLE_THRESHOLD = 4
 
 
 def _ensure_model():
@@ -58,6 +60,8 @@ class HandDetector:
         )
         self._landmarker = mp_vision.HandLandmarker.create_from_options(options)
         self._frame_ts = 0
+        self._history: deque[str | None] = deque(maxlen=HISTORY_SIZE)
+        self._zone_top: float = config.get("gesture_zone_top", 0.4)
 
     @staticmethod
     def _dist(a, b) -> float:
@@ -66,19 +70,17 @@ class HandDetector:
     def _fingers_up(self, landmarks) -> list[bool]:
         wrist = landmarks[0]
 
-        # Thumb: lateral tip and higher than the index finger's knuckle
-        thumb_lateral = landmarks[TIP[0]].x < landmarks[MCP[0]].x
-        thumb_high = landmarks[TIP[0]].y < landmarks[5].y
-        thumb = thumb_lateral and thumb_high
+        # Thumb: compare tip vs IP joint distance to wrist — orientation-independent
+        thumb_tip_d = self._dist(landmarks[TIP[0]], wrist)
+        thumb_ip_d = self._dist(landmarks[PIP[0]], wrist)
+        thumb = thumb_tip_d > thumb_ip_d * 1.3
 
-        # Fingers 1-4: extended = tip is ≥1.6x further from the wrist than the base knuckle.
-        # Using Euclidean distance to the wrist makes the detection orientation-independent
-        # (works with thumb up, hand sideways, etc.)
+        # Fingers 1-4: tip must be ≥1.5x further from wrist than the base knuckle
         others = []
         for i in range(1, 5):
             tip_d = self._dist(landmarks[TIP[i]], wrist)
             mcp_d = self._dist(landmarks[MCP[i]], wrist)
-            others.append(tip_d > mcp_d * 1.6)
+            others.append(tip_d > mcp_d * 1.5)
 
         return [thumb] + others
 
@@ -92,13 +94,10 @@ class HandDetector:
     def _classify(self, fingers: list[bool], landmarks) -> str | None:
         thumb, idx, mid, ring, pinky = fingers
 
-        # Fist: no fingers extended + tips clearly below the knuckles
         if not any(fingers) and self._all_curled(landmarks):
             return "fist"
-        # Open hand: 4 main fingers extended (thumb optional)
         if idx and mid and ring and pinky:
             return "open_hand"
-        # Thumb up: only thumb extended
         if thumb and not any((idx, mid, ring, pinky)):
             return "thumb_up"
         if not thumb and idx and not mid and not ring and not pinky:
@@ -109,6 +108,16 @@ class HandDetector:
             return "ok"
         return None
 
+    def _stable_gesture(self) -> str | None:
+        counts: dict[str, int] = {}
+        for g in self._history:
+            if g is not None:
+                counts[g] = counts.get(g, 0) + 1
+        if not counts:
+            return None
+        best = max(counts, key=counts.get)
+        return best if counts[best] >= STABLE_THRESHOLD else None
+
     def detect(self, frame) -> str | None:
         self._frame_ts += 33
         mp_image = mp.Image(
@@ -118,13 +127,21 @@ class HandDetector:
         result = self._landmarker.detect_for_video(mp_image, self._frame_ts)
 
         if not result.hand_landmarks:
+            self._history.clear()
             return None
 
         landmarks = result.hand_landmarks[0]
+
+        if landmarks[0].y < self._zone_top:
+            self._history.clear()
+            return None
+
         _draw_hand(frame, landmarks)
 
         fingers = self._fingers_up(landmarks)
-        return self._classify(fingers, landmarks)
+        gesture = self._classify(fingers, landmarks)
+        self._history.append(gesture)
+        return self._stable_gesture()
 
     def close(self):
         self._landmarker.close()
